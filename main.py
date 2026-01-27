@@ -8,42 +8,37 @@ import json
 
 app = FastAPI()
 
-# Загружаем модели
-models = {
-    "speed": YOLO("yolo11s_ov_640/yolo11s_ov_640_openvino_model.xml"),
-    
-    "accuracy": YOLO("yolo11m_visdrone_best.pt")
-}
+# Загружаем модели 
+model_speed = YOLO("yolo11s_ov_640/yolo11s_ov_640_openvino_model.xml", task="detect")
+model_accuracy = YOLO("yolo11m_visdrone_best.pt")
 
+# Функция детекции для Streamlit
+def detect_objects(img, model):
+    results = model.predict(img, conf=0.25)
+    res_plotted = results[0].plot()
+    total_objects = len(results[0].boxes)
+    # Конвертируем из BGR (OpenCV) в RGB (Streamlit)
+    return cv2.cvtColor(res_plotted, cv2.COLOR_BGR2RGB), {"total": int(total_objects)}
+
+# Логика для FastAPI 
 @app.post("/detect")
 async def detect(mode: str = "speed", file: UploadFile = File(...)):
-    # Читаем картинку, которую прислал сайт
     contents = await file.read()
     nparr = np.frombuffer(contents, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-
-    # Выбираем модель (Speed или Accuracy)
-    model = models.get(mode, models["speed"])
     
-    # Запускаем детекцию
-    results = model.predict(img, conf=0.25)
-
-    # Рисуем рамки на фото
-    res_plotted = results[0].plot()
+    current_model = model_accuracy if mode == "accuracy" else model_speed
+    res_img, stats = detect_objects(img, current_model)
     
-    # Считаем количество найденных объектов
-    total_objects = len(results[0].boxes)
+    # Конвертируем обратно в BGR для энкодинга в JPG
+    res_bgr = cv2.cvtColor(res_img, cv2.COLOR_RGB2BGR)
+    _, im_jpg = cv2.imencode(".jpg", res_bgr)
     
-    # Кодируем обработанное фото обратно в JPEG
-    _, im_jpg = cv2.imencode(".jpg", res_plotted)
-    
-    # Отправляем результат обратно на сайт
     return StreamingResponse(
         io.BytesIO(im_jpg.tobytes()), 
         media_type="image/jpeg",
-        headers={"X-Detection-Stats": json.dumps({"total": int(total_objects)})}
+        headers={"X-Detection-Stats": json.dumps(stats)}
     )
-
 
 if __name__ == "__main__":
     import uvicorn
