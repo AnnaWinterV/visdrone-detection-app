@@ -1,3 +1,6 @@
+import os
+os.environ['YOLO_CONFIG_DIR'] = '/tmp'
+
 from fastapi import FastAPI, UploadFile, File
 from ultralytics import YOLO
 import cv2
