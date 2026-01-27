@@ -8,6 +8,7 @@ import numpy as np
 import io
 from starlette.responses import StreamingResponse
 import json
+import time  
 
 app = FastAPI()
 
@@ -15,15 +16,25 @@ app = FastAPI()
 model_speed = YOLO("yolo11s_ov_640/yolo11s_ov_640_openvino_model.xml", task="detect")
 model_accuracy = YOLO("yolo11m_visdrone_best.pt", task="detect")
 
-# Функция детекции для Streamlit
 def detect_objects(img, model):
+    start_time = time.time()  
+    
     results = model.predict(img, conf=0.25)
+    
+    end_time = time.time()    
+    inference_duration = round(end_time - start_time, 3) 
+    
     res_plotted = results[0].plot()
     total_objects = len(results[0].boxes)
-    # Конвертируем из BGR (OpenCV) в RGB (Streamlit)
-    return cv2.cvtColor(res_plotted, cv2.COLOR_BGR2RGB), {"total": int(total_objects)}
+    
+    # Формируем расширенную статистику
+    stats = {
+        "total": int(total_objects),
+        "inference_time_sec": inference_duration
+    }
+    
+    return cv2.cvtColor(res_plotted, cv2.COLOR_BGR2RGB), stats
 
-# Логика для FastAPI 
 @app.post("/detect")
 async def detect(mode: str = "speed", file: UploadFile = File(...)):
     contents = await file.read()
@@ -33,7 +44,6 @@ async def detect(mode: str = "speed", file: UploadFile = File(...)):
     current_model = model_accuracy if mode == "accuracy" else model_speed
     res_img, stats = detect_objects(img, current_model)
     
-    # Конвертируем обратно в BGR для энкодинга в JPG
     res_bgr = cv2.cvtColor(res_img, cv2.COLOR_RGB2BGR)
     _, im_jpg = cv2.imencode(".jpg", res_bgr)
     
