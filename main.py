@@ -9,8 +9,8 @@ import json
 app = FastAPI()
 
 # Загружаем модели 
-model_speed = YOLO("yolo11s_ov_640/yolo11s_ov_640_openvino_model.xml", task="detect")
-model_accuracy = YOLO("yolo11m_visdrone_best.pt")
+model_speed = YOLO("yolo11s_ov_640", task="detect") 
+model_accuracy = YOLO("yolo11m_visdrone_best.pt", task="detect")
 
 # Функция детекции для Streamlit
 def detect_objects(img, model):
