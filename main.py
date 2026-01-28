@@ -9,6 +9,7 @@ import io
 from starlette.responses import StreamingResponse
 import json
 import time  
+from collections import Counter 
 
 app = FastAPI()
 
@@ -25,12 +26,16 @@ def detect_objects(img, model):
     inference_duration = round(end_time - start_time, 3) 
     
     res_plotted = results[0].plot()
-    total_objects = len(results[0].boxes)
     
-    # Формируем расширенную статистику
+    # Сбор статистики по классам
+    names = results[0].names
+    classes = results[0].boxes.cls.cpu().numpy()
+    class_counts = Counter([names[int(c)] for c in classes])
+    
     stats = {
-        "total": int(total_objects),
-        "inference_time_sec": inference_duration
+        "total": int(len(results[0].boxes)),
+        "inference_time_sec": inference_duration,
+        "class_counts": dict(class_counts) # Передаем словарь с подсчетом
     }
     
     return cv2.cvtColor(res_plotted, cv2.COLOR_BGR2RGB), stats
